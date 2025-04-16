@@ -89,7 +89,7 @@ class WikiCog(Cog):
                 title="Recent changes",
                 description=""
             ).set_footer(text=f"Page ({index + 1}/{len(chunks)})")
-            assert(embed.description)
+            assert(embed.description is not None)
 
             for item in chunk:
                 assert isinstance(item, typing.OrderedDict)
