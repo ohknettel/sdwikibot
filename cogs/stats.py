@@ -19,6 +19,25 @@ class StatsCog(Cog):
 			n += 1
 		return f"{size:.2f} {units[n]}"
 
+	@discord.app_commands.command(description="View the bot\'s latency.")
+	async def ping(self, interaction: discord.Interaction):
+		start = time.perf_counter()
+		await interaction.response.defer()
+		end = time.perf_counter()
+
+		client_latency = round((end - start) * 1000)
+		ws_latency = round(self.bot.latency * 1000)
+
+		embed = discord.Embed(
+			colour=simdem_navy_blue_colour,
+			title="\N{table tennis paddle and ball} Ping",
+			description="Pong!"
+		)
+		embed.add_field(name="Client Latency", value=f"`{client_latency}`ms")
+		embed.add_field(name="Websocket Latency", value=f"`{ws_latency}`ms")
+
+		await interaction.followup.send(embed=embed)
+
 	group = discord.app_commands.Group(
 		name="stats",
 		description="Gather info about various wiki stats."
