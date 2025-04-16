@@ -119,5 +119,17 @@ class LeaderboardsCog(Cog):
 		else:
 			await interaction.followup.send(embed=paginator.items[0], view=paginator)
 
+	async def cog_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+
+        embed = discord.Embed(
+            colour=discord.Colour.red(),
+            title=f":x: An error occurred",
+            description=f"```{error}```"
+        )
+
+        await interaction.followup.send(embed=embed)
+
 async def setup(bot: SDWikiBot):
 	await bot.add_cog(LeaderboardsCog(bot))
