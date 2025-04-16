@@ -51,9 +51,9 @@ class LeaderboardsCog(Cog):
 		self.page_urls = self.get_page_urls()
 		return True
 
-	def build_leaderboard_embed(self, title, data, fmt_row, page_urls=None):
+	def build_leaderboard_embed(self, user, title, data, fmt_row, page_urls=None):
 		chunks = chunk_list(data, 10)
-		paginator = EmbedPaginatorView()
+		paginator = EmbedPaginatorView(user)
 		for index, chunk in enumerate(chunks):
 			embed = discord.Embed(
 				colour=simdem_navy_blue_colour,
@@ -83,6 +83,7 @@ class LeaderboardsCog(Cog):
 		leaderboard = sorted(edit_counts, key=lambda x: x[1], reverse=True)[:50]
 
 		paginator = self.build_leaderboard_embed(
+			interaction.user,
 			"Leaderboard: User Contributions",
 			leaderboard,
 			lambda _, row, emoji, __: f"{emoji} **{row[0]}** ~ `{row[1]}` edits"
@@ -106,6 +107,7 @@ class LeaderboardsCog(Cog):
 			return f"{emoji} **{title}** ~ `{length}` bytes"
 
 		paginator = self.build_leaderboard_embed(
+			interaction.user,
 			"Leaderboard: Page Length",
 			leaderboard,
 			format_pagelength,
