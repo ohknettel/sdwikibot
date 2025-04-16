@@ -20,9 +20,9 @@ async def main():
 		"",
 		site=mwclient.Site(api_url, clients_useragent=user_agent),
 		tm=tracemalloc,
-		intents=intents
+		intents=intents,
+		activity=discord.Activity(type=discord.ActivityType.watching, name="the wiki")
 	) as bot:
-
 		await bot.start(token);
 
 if __name__ == "__main__":
