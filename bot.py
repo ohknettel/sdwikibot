@@ -49,8 +49,4 @@ class SDWikiBot(Bot):
 
     async def on_ready(self):
         self.start_time = time.time()
-        await self.change_presence(
-            status=discord.Status.idle,
-            activity=discord.Activity(type=discord.ActivityType.watching, details="the wiki")
-        )
         print(f"[CLIENT] Logged in as {self.user}")
