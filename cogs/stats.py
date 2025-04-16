@@ -38,12 +38,12 @@ class StatsCog(Cog):
 			colour=simdem_navy_blue_colour,
 			title="\N{bar chart} Wiki Statistics"
 		)
-		embed.add_field(name="Pages", value=str(statistics["articles"]))
-		embed.add_field(name="Edits", value=str(statistics["edits"]))
-		embed.add_field(name="Images", value=str(statistics["images"]))
-		embed.add_field(name="Users", value=str(statistics["users"]))
-		embed.add_field(name="Active Users", value=str(statistics["activeusers"]))
-		embed.add_field(name="Admins", value=str(statistics["admins"]))
+		embed.add_field(name="Pages", value=str(statistics["articles"]), inline=False)
+		embed.add_field(name="Edits", value=str(statistics["edits"]), inline=False)
+		embed.add_field(name="Images", value=str(statistics["images"]), inline=False)
+		embed.add_field(name="Users", value=str(statistics["users"]), inline=False)
+		embed.add_field(name="Active Users", value=str(statistics["activeusers"]), inline=False)
+		embed.add_field(name="Admins", value=str(statistics["admins"]), inline=False)
 
 		await interaction.followup.send(embed=embed)
 
@@ -60,10 +60,10 @@ class StatsCog(Cog):
 			colour=simdem_navy_blue_colour,
 			title="\N{bar chart} Bot Statistics"
 		)
-		embed.add_field(name="Uptime", value=f"`{uptime}`")
-		embed.add_field(name="Discord.py Version", value=f"`{discordpy_version}`")
+		embed.add_field(name="Uptime", value=f"`{uptime}`", inline=False)
+		embed.add_field(name="Discord.py Version", value=f"`{discordpy_version}`", inline=False)
 		embed.add_field(name="Commands", value=str(commands))
-		embed.add_field(name="Allocated Memory", value=self.format_bytes(current))
+		embed.add_field(name="Allocated Memory", value=self.format_bytes(current), inline=False)
 		embed.add_field(name="Memory Heap", value=self.format_bytes(heap))
 
 		await interaction.followup.send(embed=embed)
