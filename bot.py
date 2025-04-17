@@ -27,6 +27,7 @@ class SDWikiBot(Bot):
                 await self.tree.sync(guild=guild)
             except Exception as e:
                 raise e
+        await self.tree.sync();
 
         self.watcher = asyncio.create_task(self.cog_watcher())
 
