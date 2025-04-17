@@ -1,18 +1,23 @@
 import discord, typing, time, re
 from discord.ext.commands import Cog
 from functools import lru_cache
+from sentence_splitter import split_text_into_sentences;
 from mwclient.listing import Category
 from mwclient.page import Page
 from bot import SDWikiBot
 from constants import simdem_navy_blue_colour
 
 class PageInfoView(discord.ui.View):
+	summary_embed: discord.Embed
+	history_embed: discord.Embed
+	sections_embed: discord.Embed
+
 	def __init__(self, user: typing.Union[discord.User, discord.Member], bot: SDWikiBot, page_url: typing.Optional[str], page_obj: typing.Union[Page, Category]):
 		super().__init__()
 		self.user = user
 		self.bot = bot
-		self.page_url = page_url
 		self.page_obj = page_obj
+		self.page_url = page_url
 		if page_url:
 			self.url_button = discord.ui.Button(label="Visit", url=page_url)
 			self.add_item(self.url_button)
@@ -30,40 +35,79 @@ class PageInfoView(discord.ui.View):
 		await self.message.edit(embed=embed, view=self)
 
 	def get_summary_embed(self):
-		extract = self.bot.site.get("query", prop="extracts", exintro="", explaintext="", titles=self.page_obj.base_title)["query"]["pages"][str(self.page_obj.pageid)]["extract"]
-		try:
-			thumb = self.bot.site.get("query", prop="pageimages", pithumbsize=125, titles=self.page_obj.base_title)["query"]["pages"][str(self.page_obj.pageid)]["thumbnail"]["source"]
-		except Exception:
-			thumb = None
+		if getattr(self, "summary_embed", None) is None:
+			extract = self.bot.site.get("query", prop="extracts", exintro="", explaintext="", titles=self.page_obj.base_title)["query"]["pages"][str(self.page_obj.pageid)]["extract"]
+			try:
+				thumb = self.bot.site.get("query", prop="pageimages", pithumbsize=125, titles=self.page_obj.base_title)["query"]["pages"][str(self.page_obj.pageid)]["thumbnail"]["source"]
+			except Exception:
+				thumb = None
 
-		return discord.Embed(
-			colour=simdem_navy_blue_colour,
-			title=f":information_source: Page Info: `{self.page_obj.base_title}`",
-			description=extract or "`Summary could not be fetched.`",
-		).set_thumbnail(url=thumb)
+			embed = discord.Embed(
+				colour=simdem_navy_blue_colour,
+				title=f":information_source: Page Info: `{self.page_obj.base_title}`",
+				description="`Summary could not be fetched.`",
+			).set_thumbnail(url=thumb)
+
+			if extract:
+				embed.description = ""
+				assert(embed.description is not None)
+				if (len(embed.description) + len(extract)) > 2000:
+					sentences = split_text_into_sentences(extract, language="en")
+					for sentence in sentences:
+						if (len(sentence) + len(embed.description or "")) < 2000:
+							embed.description += " " + sentence
+						else:
+							break
+				else:
+					embed.description = extract
+
+			self.summary_embed = embed
+
+		return self.summary_embed
 
 	def get_history_embed(self):
-		revisions = list(self.page_obj.revisions(max_items=10))
-		embed = discord.Embed(
-			colour=simdem_navy_blue_colour,
-			title=f":information_source: Page Info: `{self.page_obj.base_title}`",
-			description="## Latest 10 items"
-		)
-		assert(embed.description)
+		if getattr(self, "history_embed", None) is None:
+			revisions = list(self.page_obj.revisions(max_items=10))
+			self.history_embed = discord.Embed(
+				colour=simdem_navy_blue_colour,
+				title=f":information_source: Page Info: `{self.page_obj.base_title}`",
+				description="## Latest 10 items"
+			)
+			assert(self.history_embed.description)
 
-		for item in revisions:
-			if not isinstance(item, typing.OrderedDict):
-				continue;
+			for item in revisions:
+				if not isinstance(item, typing.OrderedDict):
+					continue;
 
-			revid = item.get("revid")
-			user = item.get("user")
-			timestamp = item.get("timestamp")
-			comment = re.sub(r"([*_#])", r"\\\1", item.get("comment", "**`No comment.`**"))
+				revid = item.get("revid")
+				user = item.get("user")
+				timestamp = item.get("timestamp")
+				comment = re.sub(r"([*_#])", r"\\\1", item.get("comment", "**`No comment.`**"))
 
-			if revid and user and timestamp:
-				embed.description += f"\n- [`{revid}`] \N{bust in silhouette} **{user}**: {comment} (<t:{int(time.mktime(timestamp))}:R>)"
+				if revid and user and timestamp:
+					self.history_embed.description += f"\n- [`{revid}`] \N{bust in silhouette} **{user}**: {comment} (<t:{int(time.mktime(timestamp))}:R>)"
 
-		return embed
+		return self.history_embed
+
+	def get_sections_embed(self):
+		if getattr(self, "sections_embed", None) is None:
+			self.sections_embed = discord.Embed(
+				colour=simdem_navy_blue_colour,
+				title=f":information_source: Page Info: `{self.page_obj.base_title}`",
+				description=""
+			)
+			assert(self.sections_embed.description is not None)
+
+			sections = self.bot.site.get("parse", prop="sections", page=self.page_obj.base_title)["parse"]["sections"]
+			sections = typing.cast(typing.OrderedDict, sections);
+			for section in list(sections):
+				spacing = "\t" * section["toclevel"] if section["toclevel"] != 1 else ""
+				anchor = section["anchor"]
+				title = anchor.replace("_", " ")
+				hyperlink = f"[{title}]({self.page_url}#{anchor})" if self.page_url else title
+				self.sections_embed.description += f"\n{spacing}- {hyperlink}"
+
+		return self.sections_embed
 
 	@discord.ui.button(label="Summary", style=discord.ButtonStyle.green, disabled=True, custom_id="summary")
 	async def summary(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -82,6 +126,15 @@ class PageInfoView(discord.ui.View):
 
 		await interaction.response.defer()
 		await self.handle_selections(button.custom_id, self.get_history_embed())
+
+	@discord.ui.button(label="Sections", style=discord.ButtonStyle.gray, custom_id="sections")
+	async def sections(self, interaction: discord.Interaction, button: discord.ui.Button):
+		if not interaction.user == self.user:
+			await interaction.response.send_message("You are not the executor of this command!", ephemeral=True)
+			return;
+
+		await interaction.response.defer()
+		await self.handle_selections(button.custom_id, self.get_sections_embed())
 
 class Wiki2Cog(Cog):
 	def __init__(self, bot: SDWikiBot):
