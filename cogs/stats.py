@@ -4,7 +4,7 @@ import discord
 
 from discord.ext.commands import Cog
 from bot import SDWikiBot
-from constants import simdem_navy_blue_colour
+from constants import neutral_colour, archives_colour, wiki_colour
 
 class StatsCog(Cog):
 	def __init__(self, bot: SDWikiBot):
@@ -29,7 +29,7 @@ class StatsCog(Cog):
 		ws_latency = round(self.bot.latency * 1000)
 
 		embed = discord.Embed(
-			colour=simdem_navy_blue_colour,
+			colour=neutral_colour,
 			title="\N{table tennis paddle and ball} Ping",
 			description="Pong!"
 		)
@@ -48,14 +48,37 @@ class StatsCog(Cog):
 		await interaction.response.defer()
 
 		# Sync API call
-		siteinfo = self.bot.site.api(
+		siteinfo = self.bot.sites.wiki.api(
 			"query", "GET", meta="siteinfo", siprop="statistics"
 		)
 		statistics = siteinfo["query"]["statistics"]
 
 		embed = discord.Embed(
-			colour=simdem_navy_blue_colour,
+			colour=wiki_colour,
 			title="\N{bar chart} Wiki Statistics"
+		)
+		embed.add_field(name="Pages", value=str(statistics["articles"]), inline=False)
+		embed.add_field(name="Edits", value=str(statistics["edits"]), inline=False)
+		embed.add_field(name="Images", value=str(statistics["images"]), inline=False)
+		embed.add_field(name="Users", value=str(statistics["users"]), inline=False)
+		embed.add_field(name="Active Users", value=str(statistics["activeusers"]), inline=False)
+		embed.add_field(name="Admins", value=str(statistics["admins"]), inline=False)
+
+		await interaction.followup.send(embed=embed)
+
+	@group.command(description="Displays statistics about the archives.")
+	async def archives(self, interaction: discord.Interaction):
+		await interaction.response.defer()
+
+		# Sync API call
+		siteinfo = self.bot.sites.archives.api(
+			"query", "GET", meta="siteinfo", siprop="statistics"
+		)
+		statistics = siteinfo["query"]["statistics"]
+
+		embed = discord.Embed(
+			colour=archives_colour,
+			title="\N{bar chart} Archives Statistics"
 		)
 		embed.add_field(name="Pages", value=str(statistics["articles"]), inline=False)
 		embed.add_field(name="Edits", value=str(statistics["edits"]), inline=False)
@@ -76,7 +99,7 @@ class StatsCog(Cog):
 		current, heap = self.bot.tm.get_traced_memory()
 
 		embed = discord.Embed(
-			colour=simdem_navy_blue_colour,
+			colour=neutral_colour,
 			title="\N{bar chart} Bot Statistics"
 		)
 		embed.add_field(name="Uptime", value=f"`{uptime}`", inline=False)
@@ -84,18 +107,6 @@ class StatsCog(Cog):
 		embed.add_field(name="Commands", value=str(commands))
 		embed.add_field(name="Allocated Memory", value=self.format_bytes(current), inline=False)
 		embed.add_field(name="Memory Heap", value=self.format_bytes(heap))
-
-		await interaction.followup.send(embed=embed)
-
-	async def cog_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-		if not interaction.response.is_done():
-			await interaction.response.defer()
-
-		embed = discord.Embed(
-			colour=discord.Colour.red(),
-			title=f":x: An error occurred",
-			description=f"```{error}```"
-		)
 
 		await interaction.followup.send(embed=embed)
 

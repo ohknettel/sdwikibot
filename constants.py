@@ -1,4 +1,6 @@
-simdem_navy_blue_colour = 0x061442
+wiki_colour = 0x061442
+archives_colour = 0x6e4e36
+neutral_colour = 0x0B1215
 
 import discord, typing
 
@@ -7,7 +9,7 @@ class EmbedPaginatorView(discord.ui.View):
     message: typing.Optional[discord.InteractionMessage]
 
     def __init__(self, user: typing.Union[discord.User, discord.Member]):
-        super().__init__(timeout=30)
+        super().__init__(timeout=180)
         self.user = user
         self.curindex = 0
         self.items = []
@@ -61,5 +63,8 @@ class EmbedPaginatorView(discord.ui.View):
 
     async def on_timeout(self):
         if self.message:
+            for child in self.children:
+                if isinstance(child, discord.ui.Button):
+                    child.disabled = True
             self.curitem.set_footer(text=(self.curitem.footer.text or "") + " | Embed timed out")
-            await self.message.edit(embed=self.curitem, view=None)
+            await self.message.edit(embed=self.curitem, view=self)

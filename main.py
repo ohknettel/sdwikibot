@@ -1,10 +1,9 @@
 import discord, asyncio, os, mwclient, tracemalloc;
 from dotenv import load_dotenv;
-from bot import SDWikiBot;
+from bot import SDWikiBot, Sites;
 
 load_dotenv();
 token = os.getenv("TOKEN");
-api_url = os.getenv("MEDIAWIKI_API_URL", "simdemocracy.miraheze.org");
 user_agent = os.getenv("MEDIAWIKI_USER_AGENT", "SDWikiBot (knettel)");
 
 if not token:
@@ -18,10 +17,13 @@ async def main():
 	tracemalloc.start();
 	async with SDWikiBot(
 		"",
-		site=mwclient.Site(api_url, clients_useragent=user_agent),
+		sites=Sites(
+			wiki=mwclient.Site("simdemocracy.miraheze.org", clients_useragent=user_agent),
+			archives=mwclient.Site("qwrky.dev", path="/mediawiki/", clients_useragent=user_agent)
+		),
 		tm=tracemalloc,
 		intents=intents,
-		activity=discord.Activity(type=discord.ActivityType.watching, name="the wiki")
+		activity=discord.Activity(type=discord.ActivityType.watching, name="documents")
 	) as bot:
 		await bot.start(token);
 

@@ -1,13 +1,19 @@
 import asyncio, os, time, discord, mwclient
+from dataclasses import dataclass
 from discord.ext.commands import Bot, ExtensionError
 from pathlib import Path
+
+@dataclass
+class Sites:
+    wiki: mwclient.Site
+    archives: mwclient.Site
 
 class SDWikiBot(Bot):
     watcher: asyncio.Task
 
-    def __init__(self, *args, site: mwclient.Site, tm, **kwargs):
+    def __init__(self, *args, sites: Sites, tm, **kwargs):
         super().__init__(*args, **kwargs)
-        self.site = site
+        self.sites = sites
         self.tm = tm
 
     async def setup_hook(self):
@@ -25,9 +31,10 @@ class SDWikiBot(Bot):
             try:
                 self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
+                print(guild)
             except Exception as e:
                 raise e
-        await self.tree.sync();
+        # await self.tree.sync();
 
         self.watcher = asyncio.create_task(self.cog_watcher())
 
@@ -51,3 +58,6 @@ class SDWikiBot(Bot):
     async def on_ready(self):
         self.start_time = time.time()
         print(f"[CLIENT] Logged in as {self.user}")
+
+    async def on_app_command_error(self):
+        pass;

@@ -50,26 +50,5 @@ class ManagementCog(Cog):
 
 			await interaction.followup.send(embed=embed)
 
-	async def cog_app_command_error(self, interaction: discord.Interaction, error: discord.app_commands.AppCommandError):
-		if isinstance(error, discord.app_commands.MissingPermissions):
-			embed = discord.Embed(
-				colour=discord.Colour.red(),
-				title=f":x: Unauthorized",
-				description=f"You are not authorized to run this command."
-			)
-
-			await interaction.response.send_message(embed=embed, ephemeral=True)
-		else:
-			if not interaction.response.is_done():
-				await interaction.response.defer()
-
-			embed = discord.Embed(
-				colour=discord.Colour.red(),
-				title=f":x: An error occurred",
-				description=f"```{error}```"
-			)
-
-			await interaction.followup.send(embed=embed)
-
 async def setup(bot: SDWikiBot):
 	await bot.add_cog(ManagementCog(bot))
