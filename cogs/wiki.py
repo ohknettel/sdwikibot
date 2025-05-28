@@ -65,7 +65,7 @@ class WikiCog(Cog):
 				site = self.bot.sites.archives
 				_page = archives_page
 		else:
-			_page = wiki_page if wiki_page.id else archives_page
+			_page = wiki_page if wiki_page.pageid not in ["", None] else archives_page
 			site = self.bot.sites.wiki if _page == wiki_page else self.bot.sites.archives
 
 		latest_revisions: typing.Any = list(_page.revisions(max_items=1))
