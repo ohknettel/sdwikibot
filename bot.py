@@ -31,10 +31,9 @@ class SDWikiBot(Bot):
             try:
                 self.tree.copy_global_to(guild=guild)
                 await self.tree.sync(guild=guild)
-                print(guild)
             except Exception as e:
                 raise e
-        # await self.tree.sync();
+        await self.tree.sync();
 
         self.watcher = asyncio.create_task(self.cog_watcher())
 
