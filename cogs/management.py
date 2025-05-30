@@ -29,7 +29,7 @@ class ManagementCog(Cog):
 			await self.bot.reload_extension(extension)
 
 			embed = discord.Embed(
-				title="\N{white heavy check mark} Reloaded extension successfully",
+				title=":white_check_mark: Reloaded extension successfully",
 				description=f"Reloaded extension `{extension}`.",
 				colour=discord.Colour.green()
 			)
@@ -43,7 +43,7 @@ class ManagementCog(Cog):
 			)
 
 			embed = discord.Embed(
-				title="\N{cross mark} Failed to reload extension",
+				title=":x: Failed to reload extension",
 				description=error_message,
 				colour=discord.Colour.red()
 			)

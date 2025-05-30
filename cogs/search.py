@@ -31,7 +31,7 @@ class SearchCog(Cog):
 		global_embed_colour = neutral_colour if site == "both" else (wiki_colour if site == "wiki" else archives_colour)
 		lscreen = discord.Embed(
 			colour=global_embed_colour,
-			title=f"\N{left-pointing magnifying glass} Search: `{query}`",
+			title=f":mag: Search: `{query}`",
 			description="Please be patient while I fetch results..."
 		).set_author(name="Loading")
 		lmsg = await interaction.followup.send(embed=lscreen, wait=True)
