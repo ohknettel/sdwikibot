@@ -1,0 +1,34 @@
+{
+	"general": [
+		{
+			"name": "help_on_mention",
+			"description": "Whether to display the bot's help embed when mentioned.",
+			"default": true,
+			"display": "yesno"
+		}
+	],
+	"smart_referencing": [
+		{
+			"name": "toggle_smart_referencing",
+			"description": "Whether to enable or disable smart referencing.",
+			"default": false
+		},
+		{
+			"name": "link_prefix_message",
+			"description": "The message to show before links during smart referencing. Set to `None` to disable.",
+			"default": "Roger roger!"
+		},
+		{
+			"name": "silence_link_embeds",
+			"description": "Whether to allow or disable embeding in page hyperlinks.",
+			"default": true,
+			"display": "yesno"
+		},
+		{
+			"name": "view_related_items",
+			"description": "Whether to show related items in smart referencing.",
+			"default": true,
+			"display": "yesno"
+		}
+	]
+}
