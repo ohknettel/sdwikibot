@@ -1,8 +1,7 @@
 wiki_colour = 0x061442
 archives_colour = 0x6e4e36
 neutral_colour = 0x0B1215
-
-import discord, typing
+import discord, typing;
 
 class EmbedPaginatorView(discord.ui.View):
     curitem: discord.Embed
