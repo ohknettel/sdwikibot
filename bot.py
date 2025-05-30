@@ -1,7 +1,8 @@
-import asyncio, os, time, discord, mwclient
-from dataclasses import dataclass
-from discord.ext.commands import Bot, ExtensionError
-from pathlib import Path
+import asyncio, os, time, discord, mwclient, json;
+from dataclasses import dataclass;
+from discord.ext.commands import Bot, ExtensionError;
+from pathlib import Path;
+from cache import PickleCacheManager;
 
 @dataclass
 class Sites:
@@ -33,9 +34,35 @@ class SDWikiBot(Bot):
                 await self.tree.sync(guild=guild)
             except Exception as e:
                 raise e
-        await self.tree.sync();
+        else:
+            await self.tree.sync();
 
+        await self.ensure_settings();
         self.watcher = asyncio.create_task(self.cog_watcher())
+
+    def _return_settings(self, d={}):
+        settings: dict = json.load(open("settings.json", "rb"))
+        for _list in settings.values():
+            for item in _list:
+                if item["name"] not in d:
+                    d[item["name"]] = item.get("default", None);
+        return (settings, d);
+
+    async def ensure_settings(self):
+        if not os.path.exists("./settings/"):
+            os.mkdir("./settings/");
+
+        async for guild in self.fetch_guilds():
+            db = PickleCacheManager.get_cache(f"settings/{guild.id}.pkl");
+            settings, db = self._return_settings(db);
+            db["metadata"] = settings;
+            PickleCacheManager.sync_cache(f"settings/{guild.id}.pkl");
+
+    def get_guild_settings(self, _id: int):
+        return PickleCacheManager.get_cache(f"settings/{_id}.pkl");
+
+    def sync_guild_settings(self, _id: int):
+        PickleCacheManager.sync_cache(f"settings/{_id}.pkl");
 
     async def cog_watcher(self):
         print("[WATCHER] Watching for changes...")
@@ -57,6 +84,3 @@ class SDWikiBot(Bot):
     async def on_ready(self):
         self.start_time = time.time()
         print(f"[CLIENT] Logged in as {self.user}")
-
-    async def on_app_command_error(self):
-        pass;
