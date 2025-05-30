@@ -10,10 +10,6 @@ if not token:
 	raise EnvironmentError("Bot token not supplied");
 
 async def main():
-	intents = discord.Intents.default();
-	intents.message_content = True;
-	intents.presences = True;
-
 	tracemalloc.start();
 	async with SDWikiBot(
 		"",
@@ -22,8 +18,9 @@ async def main():
 			archives=mwclient.Site("qwrky.dev", path="/mediawiki/", clients_useragent=user_agent)
 		),
 		tm=tracemalloc,
-		intents=intents,
-		activity=discord.Activity(type=discord.ActivityType.watching, name="documents")
+		intents=discord.Intents.all(),
+		activity=discord.Activity(type=discord.ActivityType.watching, name="documents"),
+		status=discord.Status.idle
 	) as bot:
 		await bot.start(token);
 
