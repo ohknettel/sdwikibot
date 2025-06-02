@@ -12,7 +12,7 @@ if not token:
 async def main():
 	tracemalloc.start();
 	async with SDWikiBot(
-		"",
+		"sdwikibot!",
 		sites=Sites(
 			wiki=mwclient.Site("simdemocracy.miraheze.org", clients_useragent=user_agent),
 			archives=mwclient.Site("qwrky.dev", path="/mediawiki/", clients_useragent=user_agent)
