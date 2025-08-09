@@ -105,7 +105,6 @@ class EventsCog(Cog):
 		matches_before = BRACKETS_PATTERN.findall(before.content.strip())
 		matches_after = BRACKETS_PATTERN.findall(after.content.strip())
 
-		print(matches_before, matches_after)
 		if matches_before == matches_after:
 			return
 
@@ -129,7 +128,6 @@ class EventsCog(Cog):
 				self.cache[f"results:{after.id}"] = [await after.reply(chunk)]
 		elif len(matches_before) <= len(matches_after):
 			messages: list[discord.Message] | None = self.cache.get(f"results:{before.id}")
-			print(messages, chunks)
 			if not messages:
 				return
 
@@ -400,7 +398,6 @@ class EventsCog(Cog):
 	def _parse_hyperlinks(self, content: str, page: customs.RevisionsPage, url_format: str):
 		for match in HYPERLINKS_PATTERN.finditer(content):
 			iw_link, iw_text, ex_link, ex_text = match.groups()
-			print(iw_link, iw_text, ex_link, ex_text)
 
 			if iw_link:
 				if iw_link.startswith("#"):
