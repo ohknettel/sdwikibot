@@ -1,0 +1,7 @@
+*.pyc *.pyd *.pyo
+.venv
+.env
+*/__pycache__
+__pycache__
+preferences/*[0-9].json
+*.zip

@@ -1,0 +1,27 @@
+[
+	{
+		"key": "smart_referencing",
+		"value": false,
+		"description": "Search for pages through Mediawiki hyperlink format ([[...]])."
+	},
+	{
+		"key": "silence_result_links",
+		"value": true,
+		"description": "Whether to show preview embeds for results returned by smart referencing."
+	},
+	{
+		"key": "reference_on_edit",
+		"value": true,
+		"description": "Whether to apply smart referencing on message edits."
+	},
+	{
+		"key": "results_message",
+		"value": "Roger that!",
+		"description": "The message to display when results are found."
+	},
+	{
+		"key": "maximum_reference_character_limit",
+		"value": 4000,
+		"description": "The maximum character intake that the bot will support for a single reference."
+	}
+]
