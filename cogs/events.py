@@ -1,26 +1,43 @@
 from bot import SDWB2
 from discord.ext.commands import Cog
 from collections import defaultdict
+from rapidfuzz import process, fuzz
 
-import urllib.parse
 import re 
 import customs
+import parser
 import aiohttp
 import asyncio
 
 import discord
 import tinydb
 import orjson
-import difflib
 import cachetools
 import sentence_splitter
+import traceback
 
 BRACKETS_PATTERN = re.compile(r"\[\[(.+?)\]\]")
-REFERENCES_PATTERN = re.compile(r"[:'| ]*(?:<(?P<html>\w+)\s*[^>]*?id=[\"\']([^\"\']+)[\"\'][^>]*>\s?(.+?)\s*</(?P=html)>|^=+\s?(.+?)\s?=+$)", re.MULTILINE | re.DOTALL)
-HYPERLINKS_PATTERN = re.compile(r"\[\[(#?[^\[\]|]+?)(?:\|([^\[\]]*(?:\[[^\[\]]*\][^\[\]]*)*))?\]\]|\[(https?://[^\s\[\]]+)\s+([\w\s\S]+?)\]", re.MULTILINE)
 HEADERS = {
 	"User-Agent": f"sdwikibot/2.0 (@knettel; knettel.miraheze.org) discord.py/{discord.__version__}"
 }
+
+def prefix_sort(text, query):
+	if len(query) < 3:
+		return 0
+		
+	text_lower = text.lower()
+	query_lower = query.lower()
+	
+	max_check = min(len(text_lower), len(query_lower))
+	score = 0
+	
+	for i in range(max_check):
+		if text_lower[i] == query_lower[i]:
+			score += 1
+		else:
+			break
+			
+	return score if score >= 3 else 0
 
 class EventsCog(Cog):
 	def __init__(self, bot: SDWB2):
@@ -28,7 +45,7 @@ class EventsCog(Cog):
 
 	async def cog_load(self):
 		self.cache = cachetools.TTLCache(maxsize=64, ttl=86400)
-		self.search_cache = cachetools.Cache(maxsize=1024)
+		self.search_cache = cachetools.TTLCache(maxsize=256, ttl=1800)
 	   	
 		connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
 		self.session = aiohttp.ClientSession(connector=connector, headers=HEADERS)
@@ -177,25 +194,22 @@ class EventsCog(Cog):
 
 				host = allowed_hosts[i]
 				items = result
-				titles = difflib.get_close_matches(content, [page["title"] for page in items], n=4, cutoff=0.1)
+				fuzzy = process.extract(content, [page["title"] for page in items], limit=4, scorer=fuzz.QRatio)
 				
-				for title in titles:
+				for title, _, _ in fuzzy:
 					page = next(item for item in items if item["title"] == title)
 					page["host"] = host
 
 					finds[title].add(host["name"])
+
 					pages[title].append(page)
+					cgroups[content].append(page)
+
 					refs[title] = sorted(tags)
 
 		chunks = [""]
-		maximum_character_limit = preferences.get(query.key == "maximum_reference_character_limit")
-		if not maximum_character_limit or isinstance(maximum_character_limit, list):
-			return
-		elif not (max_character_limit := maximum_character_limit.get("value")):
-			return
-
 		if any(len(v) > 0 for v in refs.values()):
-			chunk_list = await self.parse_wikitext({k: v for k, v in pages.items() if len(refs[k]) > 0}, refs, url_format, max_character_limit, finds)
+			chunk_list = await self.parse_wikitext({k: v for k, v in pages.items() if len(refs[k]) > 0}, refs, url_format, cgroups)
 			if chunk_list is False:
 				return
 
@@ -206,7 +220,7 @@ class EventsCog(Cog):
 			else:
 				chunks = [""]
 		
-		self._format_links(preferences, pages, finds, chunks)
+		self._format_links(preferences, cgroups, finds, chunks)
 
 		return chunks
 			
@@ -247,223 +261,145 @@ class EventsCog(Cog):
 				print(f"Search error for {host["name"]}: {e}")
 				return None
 
-	def _split_dashes(self, string: str):
-		parts = string.split("-")
-		if len(parts) >= 2:
-			return ["-".join(parts[:-1]), parts[-1]]
-		return [string]
+	async def parse_wikitext(self, pages: dict[str, list[customs.RevisionsPage]], refs: dict[str, list[str]], url_format: str, cgroups: dict):
+		try:
+			chunks: list[str] = []
+			chunk_limit = 1700
 
-	async def parse_wikitext(self, pages: dict[str, list[customs.RevisionsPage]], refs: dict[str, list[str]], url_format: str, maximum_character_limit: int, finds: dict[str, set[str]]):
-		chunks: list[str] = []
-		chunk_limit = 1700
+			for title, items in pages.items():
+				current = []
+				include_hosts = len(items) > 1
+				for page in items:
+					found_ref = False
+					for ref in refs[title]:
+						rcp = ref
+						if not page["revisions"]:
+							continue
 
-		for title, items in pages.items():
-			current = []
-			include_hosts = len(items) > 1
-			for page in items:
-				found_ref = False
-				for ref in refs[title]:
-					rcp = ref
-					if not page["revisions"]:
-						continue
+						page_content = page["revisions"][0]["slots"]["main"]["content"]
+						contents = parser.get_reference(ref,  page_content)
+						if not contents:
+							continue
 
-					page_content = page["revisions"][0]["slots"]["main"]["content"]
-					matches = list(m for m in REFERENCES_PATTERN.finditer(page_content)
-								   if m)
+						for content in contents:
+							string = parser.format_wikitext(content, page["host"], url_format)
+							if len(string) > chunk_limit:
+								paragraphs = string.strip().replace("\n", "\n\n").split("\n\n")
 
-					end = -1
-					if "->" in ref:
-						ref, ref2 = list(filter(None, ref.split("->")))
-						match2 = discord.utils.find(lambda m: m.groups() and ref2.lower() in [str(n).lower() for n in m.groups()], matches)
-						if match2:
-							index = matches.index(match2)
-							if match2.group(4):
-								end = match2.start()
-							elif index + 1 < len(matches) and not matches[index + 1].group(3):
-								end = matches[index + 1].start()
+								for idx, paragraph in enumerate(paragraphs):
+									paragraph = paragraph.strip()
+									if paragraph:
+										for i, sentence in enumerate(sentence_splitter.split_text_into_sentences(paragraph, "en")):
+											current_sum = sum(len(text) for text in current)
+											if current_sum + len(sentence) < chunk_limit:
+												if i == 0:
+													current.append("> " + sentence)
+												else:
+													current[-1] = f"{current[-1].rstrip()} {sentence}" 
+											else:
+												current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+												chunks.append("\n".join(current))
+												current.clear()
+												current.append("> " + sentence)
+
+									idx += 1
+
+								if len(current) > 0:
+									current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+									chunks.append("\n".join(current))
+									current.clear()
 							else:
-								end = match2.end()
+								if len(chunks) == 0:
+									chunks.append("")
+								
+								builder = []
 
-					match = discord.utils.find(lambda m: m.groups() and ref.lower() in [str(n).lower() for n in m.groups()], matches)
-					if not match:
-						continue
+								string = string.rstrip("‎  \t")
+								if "\n" in string:
+									for line in string.splitlines():
+										if not line:
+											continue
 
-					index = matches.index(match)
-					group = 3 if match.group(3) else 4
+										builder.append("> " + line)
 
-					start = match.start()
-					if end < 0:
-						try:
-							if group == 3:
-								end = next(m for m in matches[index + 1:] if m.group(group) or m.group(4)).start()
-							else:
-								for m in matches[index + 1:]:
-									mg = m.group(0)
-									if mg.count("=") == match.group(0).count("="):
-										end = m.start()
-										break
+									builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+								else:
+									builder.append(f"> {string.strip()}")
+									builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+								
+								if len(chunks[-1] + "\n".join(builder)) < chunk_limit:
+									chunks[-1] += "\n".join(builder)
+								else:
+									chunks.append("\n".join(builder))
 
-								if end < 0:
-									raise StopIteration()
-						except StopIteration:
-							end = len(page_content)
+						found_ref = True
 
-					catched = page_content[start:end].strip()
-					if len(catched) > maximum_character_limit:
-						return False
-					elif catched == match.group(0).strip():
-						continue
+					if found_ref:
+						k = next(iter(n for n, v in cgroups.items() if any(p for p in v if p == page)))
+						cgroups[k].remove(page)
 
-					string = self._parse_hyperlinks(
-						self._parse_formatting(catched),
-						page, url_format
-					)
-					
+			return chunks
+		except Exception:
+			traceback.print_exc()
+			return []
 
-					if len(string) > chunk_limit:
-						paragraphs = string.strip().replace("\n", "\n\n").split("\n\n")
+	def _format_links(self, preferences, content_groups: dict[str, list[customs.RevisionsPage]], finds: dict, replies: list[str]):
+		try:
+			if not content_groups or not any(content_groups.values()):
+				return
 
-						for idx, paragraph in enumerate(paragraphs):
-							paragraph = paragraph.strip()
-							if paragraph:
-								paragraph = re.sub(r"^:+", lambda m: " ​  ​ " * len(m.group(0)), paragraph)
-								for i, sentence in enumerate(sentence_splitter.split_text_into_sentences(paragraph, "en")):
-									current_sum = sum(len(text) for text in current)
-									if current_sum + len(sentence) < chunk_limit:
-										if i == 0:
-											current.append("> " + sentence)
-										else:
-											current[-1] = f"{current[-1].rstrip()} {sentence}" 
-									else:
-										current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
-										chunks.append("\n".join(current))
-										current.clear()
-										current.append("> " + sentence)
+			m_hyperlinks = [] # main
+			r_hyperlinks = [] # related
 
-							idx += 1
+			duplicates = {key for key, hosts in finds.items() if len(hosts) > 1}
+			query = tinydb.Query()
+			url_format = ("<%s>" if preferences.contains((query.key == "silence_result_urls") & (query.value == True)) 
+						  else "%s")
 
-						if len(current) > 0:
-							current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
-							chunks.append("\n".join(current))
-							current.clear()
-					else:
-						if len(chunks) == 0:
-							chunks.append("")
-						
-						builder = []
-						if "\n" in string:
-							for line in string.splitlines():
-								if not line:
-									continue
+			for search, matches in content_groups.items():
+				if not matches:
+					continue
 
-								line = re.sub(r"^:+", lambda m: " ​  ​ " * len(m.group(0)), line)
-								builder.append("> " + line)
-
-							builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
-						else:
-							string = re.sub(r"^:+", lambda m: " ​  ​ " * len(m.group(0)), string)
-							builder.append(f"> {string}")
-							builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
-						
-						if len(chunks[-1] + "\n".join(builder)) < chunk_limit:
-							chunks[-1] += "\n".join(builder)
-						else:
-							chunks.append("\n".join(builder))
-
-					found_ref = True
-
-				if found_ref:
-					pages[title].remove(page)
-					if title in finds:
-						finds[title].remove(page["host"]["name"])
-
-		return chunks
-
-	def _parse_hyperlinks(self, content: str, page: customs.RevisionsPage, url_format: str):
-		for match in HYPERLINKS_PATTERN.finditer(content):
-			iw_link, iw_text, ex_link, ex_text = match.groups()
-
-			if iw_link:
-				if iw_link.startswith("#"):
-					repl = url_format % (iw_text, page["fullurl"] + iw_link)
-				elif iw_text:
-					repl = url_format % (iw_text, self._api_to_page_url(page["host"]["api_url"], iw_link))
-				else:
-					repl = url_format % (iw_link, self._api_to_page_url(page["host"]["api_url"], iw_link))
-				
-				content = content.replace(match.group(0), repl)
+				best_match = max(matches, key=lambda p: prefix_sort(p["title"], search))
+				other_matches = [match for match in matches if match["title"] != best_match["title"]]
 			
-			if ex_link and ex_text:
-				repl = url_format % (ex_text, ex_link)
-				content = content.replace(match.group(0), repl)
+				self._categorize_link(best_match, duplicates, m_hyperlinks, url_format, matches)
 
-		return content
+				for page in other_matches:
+					self._categorize_link(page, duplicates, r_hyperlinks, url_format, matches)
 
-	def _parse_formatting(self, content: str):
-		content = re.sub(r"^(?P<hdr>=+)\s?(.+?)\s?(?P=hdr)", lambda m: "#" * len(m.group(1)) + f" {m.group(2)}", content, flags=re.MULTILINE)
-		content = content.replace("*", "•").replace("'''", "**").replace("''", "*")
-		content = re.sub(r"<ref\b[^>]*?(?:\/>|>.*?<\/ref>)", "", content)
-		content = re.sub(r"<[^>]*>|\|?}|^\|\s?", "", content)
-		return content
+			if not m_hyperlinks:
+				return
 
-	def _api_to_page_url(self, api_url: str, page_title: str) -> str:
-		parsed = urllib.parse.urlparse(api_url)
-		base_url = f"{parsed.scheme}://{parsed.netloc}"
-		safe_title = urllib.parse.quote(page_title.replace(' ', '_'), safe='')
-		
-		if '/w/api.php' in parsed.path:
-			return f"{base_url}/wiki/{safe_title}"
-		else:
-			base_path = parsed.path.replace('/api.php', '')
-			return f"{base_url}{base_path}/index.php?title={safe_title}"
-
-	def _parse_bracket_content(self, content: str):
-		title, allowed_sites, tags = content, [], []
-		if "|" in content:
-			title, allowed_sites = content.split("|", 1)
-			allowed_sites = [site.strip() for site in allowed_sites.split(",")]
-		if "#" in title:
-			title, tag_str = title.split("#", 1)
-			tags = [tag.strip() for tag in tag_str.split("#")]
-		return title.strip(), allowed_sites, tags
-
-	def _format_links(self, preferences, pages: dict[str, list[customs.RevisionsPage]], finds: dict[str, set[str]], replies: list[str]):
-		hyperlinks = []
-		duplicates = {key for key, hosts in finds.items() if len(hosts) > 1}
-
-		query = tinydb.Query()
-		url_format = ("<%s>" if preferences.contains((query.key == "silence_result_urls") & (query.value == True)) 
-					  else "%s")
-
-		for title, matches in pages.items():
-			if not matches:
-				continue
-
-			if title in duplicates:
-				links = []
-				for site in finds[title]:
-					page = next((p for p in matches if p["host"]["name"] == site), matches[0])
-					if page:
-						links.append(f"[{site}]({url_format % page['fullurl']})")
-						
-				hyperlinks.append(f"*{title}* ({', '.join(links)})")
+			if len(m_hyperlinks) == 1:
+				message = f"Roger that! Here is your link: {m_hyperlinks[0]}"
+			elif len(m_hyperlinks) > 1:
+				message = f"Roger that! Here are your links: {", ".join(m_hyperlinks)}\n"
 			else:
-				hyperlinks.append(f"*[{title}]({url_format % matches[0]['fullurl']})*")
+				return
+			
+			if len(r_hyperlinks) > 0:
+				message = message.rstrip() + "\n-# Not what you are looking for? View related items: " + ", ".join(r_hyperlinks)
 
-		if not hyperlinks:
-			return
+			if len(replies[-1] + message) >= 2000 and len(replies[-1]) > 0:
+				replies.append("")
+			replies[-1] = f"{replies[-1].rstrip()}\n\n{message.lstrip()}"
+		except:
+			traceback.print_exc()
 
-		if len(hyperlinks) == 1:
-			message = f"Roger that! Here is your link: {hyperlinks[0]}"
-		elif len(hyperlinks) > 1:
-			message = f"Roger that! Here are your links: {hyperlinks[0]}\n"
-			message += "-# Not what you are looking for? View related items: " + ", ".join(hyperlinks[1:])
+	def _categorize_link(self, page, duplicates, storage, url_format, matches):
+		title = page["title"]
+		
+		if title in duplicates:
+			links = [
+				f"[{match['host']['name']}]({url_format % match['fullurl']})"
+				for match in matches 
+				if match["host"]["name"] != page["host"]["name"] and match["title"] == title
+			]
+			if links:
+				storage.append(f"*{title}* ({', '.join(links)})")
 		else:
-			return
-
-		if len(replies[-1] + message) >= 2000 and len(replies[-1]) > 0:
-			replies.append("")
-		replies[-1] = f"{replies[-1].rstrip()}\n\n{message.lstrip()}"
+			storage.append(f"*[{title}]({url_format % page['fullurl']})*")
 
 async def setup(bot: SDWB2):
 	await bot.add_cog(EventsCog(bot))
