@@ -116,9 +116,9 @@ class EventsCog(Cog):
 			try:
 				await after.author.send(f"**Your reference exceeds the maximum character limit! Please revise your references and try again!**\n{after.jump_url}")
 			except discord.Forbidden:
-				pass
-
-			return
+				return
+			finally:
+				return
 		
 		if len(matches_before) == 0 and len(matches_after) > 0:
 			for chunk in chunks:
@@ -127,60 +127,44 @@ class EventsCog(Cog):
 
 				self.cache[f"results:{after.id}"] = [await after.reply(chunk)]
 		elif len(matches_before) <= len(matches_after):
-			messages: list[discord.Message] | None = self.cache.get(f"results:{before.id}")
+			messages: list[discord.Message] | None = self.cache.get(f"results:{before.id}", [])
 			if not messages:
-				return
+				for chunk in chunks:
+					if not chunk:
+						continue
 
-			i = 0
-			for chunk in chunks:
-				if not chunk:
-					continue
-
-				if i < len(messages):
-					messages[i] = await messages[i].edit(content=chunk)
-					i += 1
-				else:
 					messages.append(await after.reply(chunk))
+			else:
+				i = 0
+				for chunk in chunks:
+					if not chunk:
+						continue
 
-			self.cache[f"results:{after.id}"] = [messages]
+					if i < len(messages):
+						messages[i] = await messages[i].edit(content=chunk)
+						i += 1
+					else:
+						messages.append(await after.reply(chunk))
+
+			self.cache[f"results:{after.id}"] = messages
 			
 	async def smart_reference(self, _input: str, hosts: tinydb.TinyDB, url_format: str, preferences):
 		matches = list(BRACKETS_PATTERN.finditer(_input))
 		if not matches:
 			return
 
-		content_groups = defaultdict(lambda: {'sites': set(), 'tags': set()})
-		for match in matches:
-			content, allowed_sites, tags = self._parse_bracket_content(match.group(1))
-			content_groups[content]["sites"].update(allowed_sites)
-			content_groups[content]["tags"].update(tags)
-
 		finds = defaultdict(set)
 		pages: dict[str, list[customs.RevisionsPage]] = defaultdict(list)
 		refs = defaultdict(list)
-		query = tinydb.Query()
+		cgroups: dict[str, list[customs.RevisionsPage]] = defaultdict(list)
 
-		for content, group_data in content_groups.items():
-			allowed_sites, tags = group_data["sites"], group_data["tags"]
+		for match in matches:
+			if not match or not (content := match.group(1)):
+				continue
 
-			if len(allowed_sites) > 0:
-				allowed_hosts = list(
-					filter(
-						lambda host: host["name"] in allowed_sites and host.get("enabled", False), 
-						hosts
-					)
-				)
-			else:
-				allowed_hosts = list(
-					filter(
-						lambda host: host.get("enabled", False), 
-						hosts
-					)
-				)
+			content, tags = parser.get_title_tags(content)
 
-			if not allowed_hosts:
-				return
-
+			allowed_hosts = hosts.all()
 			search_tasks = [self.search_host_cached(host, content) for host in allowed_hosts]
 			search_results = await asyncio.gather(*search_tasks, return_exceptions=True)
 
