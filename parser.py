@@ -25,63 +25,40 @@ class ReferencableObject:
 	level: int = -1
 
 def extract_referencable(text: str):
+	text = re.sub(DIV_RE, "", text)
+	text = re.sub(WHITESPACE_RE, "\n", text)
+
 	code = mwparserfromhell.parse(text)
 	referencable = []
-	nodes_to_remove = []
-	nodes_to_replace = []
-	
-	for node in code.nodes:
-		node_type = type(node)
-		
-		if node_type == mwparserfromhell.nodes.Tag:
-			text_content = node.strip()
-			
-			if "span" in text_content:
-				fragments = html.fragments_fromstring(text_content)
-				if fragments:
-					el = next((f for f in fragments if isinstance(f, html.HtmlElement)), None)
-					if el is not None and el.get("id"):
-						referencable.append(ReferencableObject(
-							ReferencableObjectType.SPAN,
-							text_content,
-							el.get("id")
-						))
-			
-			elif "div" in text_content:
-				fragments = [t for t in html.fragments_fromstring(text_content) if isinstance(t, html.HtmlElement)]
-				for fragment in fragments:
-					if fragment.tag == "div" and "mw-collapsible" in fragment.classes:
-						nodes_to_remove.append(node)
-						break
-				else:
-					nodes_to_replace.append((node, node.contents.strip_code()))
-			
-			elif "<ref" in text_content:
-				nodes_to_remove.append(node)
-		
-		elif node_type == mwparserfromhell.nodes.Wikilink:
-			if node.title.startswith("Category:"):
-				nodes_to_remove.append(node)
-		
-		elif node_type == mwparserfromhell.nodes.Heading:
-			node_cp = deepcopy(node)
-			referencable.append(ReferencableObject(
-				ReferencableObjectType.HEADER,
-				str(node),
-				node_cp.strip("=").strip(),
-				node.count("=") // 2,
-			))
-	
-	for node in nodes_to_remove:
-		code.remove(node)
-	
-	for node, replacement in nodes_to_replace:
-		code.replace(node, replacement)
+
+	for heading in code.filter_headings():
+		heading_cp = deepcopy(heading)
+		referencable.append(ReferencableObject(
+			ReferencableObjectType.HEADER,
+			str(heading),
+			heading_cp.strip("=").strip(),
+			heading.count("=") // 2,
+		))
+
+	for tag in code.filter_tags():
+		if tag.tag == "span":
+			try:
+				element: html.HtmlElement = html.fragment_fromstring(str(tag))
+				if (_id := element.get("id")):
+					referencable.append(ReferencableObject(
+						ReferencableObjectType.SPAN,
+						str(tag.contents),
+						_id
+					))
+			finally:
+				code.replace(tag, tag.contents)
+		elif tag.tag == "ref":
+			code.remove(tag)
 	
 	return WHITESPACE_RE.sub(r"\n\n", str(code)).strip(), referencable
 
 def get_reference(reference: str, text: str):
-	text_content, referencable = extract_referencable(text)
+	text_content, referencable = extract_referencable(textwrap.dedent(text).strip())
 
 	if not referencable:
 		return None
