@@ -13,6 +13,7 @@ class MiscCog(commands.Cog):
 `[[...#A]]` - searchs all enabled wikis for pages with ... in their title, then grabs the segment with an ID of `A` where available
 `[[...#A->B]]` - searchs all enabled wikis for pages with ... in their title, then grabs the contents of the entire segment from a section with ID `A` to the section with ID `B` where available
 `[[...#A#B#C]]` - searchs all enabled wikis for pages with ... in their title, then grabs the contents of segments `A`, `B` and `C` through their ID
+`[[...|A]]` - alternative syntax for above
 **Fetching segments by ID is case-insensitive.**"""))
 
 	@commands.hybrid_command(description="Help about SD Wikibot.")
