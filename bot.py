@@ -8,8 +8,15 @@ import time
 import orjson
 import customs
 import discord
+import aiohttp
+import aiosqlite
 
 class SDWB2(Bot):
+	def __init__(self, *args, session: aiohttp.ClientSession, **kwargs): # db: aiosqlite.Connection, session: aiohttp.ClientSession, **kwargs):
+		super().__init__(*args, **kwargs)
+		# self.db = db
+		self.session = session
+
 	async def setup_hook(self):
 		cogs_path = Path("./cogs")
 		for file in cogs_path.rglob("*.py"):
