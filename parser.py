@@ -6,9 +6,11 @@ import urllib.parse
 import mwparserfromhell
 import re
 import customs
+import textwrap
 
 TAB_SUBST = "‎ ‎ ‎‎ ‎  ‎ ‎ "
 REF_RE = re.compile(r"\||#")
+DIV_RE = re.compile(r"<div[^<>]*>.+?</div>", re.DOTALL)
 WHITESPACE_RE = re.compile(r"\s{3,}")
 
 class ReferencableObjectType(IntEnum):
