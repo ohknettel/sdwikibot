@@ -9,16 +9,30 @@ load_dotenv(dotenv_path=".env")
 
 import discord
 import os
+#import uvloop
 import winloop
+import aiohttp
 from bot import SDWB2
 
+HEADERS = {
+	"User-Agent": f"sdwikibot/2.0 (@knettel; knettel.miraheze.org) discord.py/{discord.__version__}"
+}
+
 async def main():
-	async with SDWB2(command_prefix=when_mentioned, help_command=None, intents=discord.Intents.all(), logger=None, activity=discord.Activity(type=discord.ActivityType.watching, name="documents"), status=discord.Status.idle) as bot:
-		try:
-			await bot.start(os.getenv("TOKEN", ""))
-		except (asyncio.CancelledError, KeyboardInterrupt):
-			bot.loop.stop()
-			sys.exit(0)
+	connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
+	async with aiohttp.ClientSession(connector=connector, headers=HEADERS) as session:
+		async with SDWB2(
+			command_prefix=when_mentioned,
+			session=session,
+			help_command=None,
+			intents=discord.Intents.all(),
+			activity=discord.Activity(type=discord.ActivityType.watching, name="documents"),
+			status=discord.Status.idle) as bot:
+			try:
+				await bot.start(os.getenv("TOKEN", ""))
+			except (asyncio.CancelledError, KeyboardInterrupt):
+				bot.loop.stop()
+				sys.exit(0)
 
 if __name__ == '__main__':
 	winloop.install()
