@@ -4,8 +4,13 @@ discord.py
 orjson
 cachetools
 sentence-splitter
-types-cachetools
 python-dotenv
 mwparserfromhell
 lxml
 rapidfuzz
+fastembed
+faiss-cpu
+nltk
+python-dateutil
+aiosqlite
+numpy
