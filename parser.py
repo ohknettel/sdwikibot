@@ -113,18 +113,18 @@ def format_wikitext(text: str, host: customs.Host, url_format: str = "[%s](%s)")
 	for node in code.nodes:
 		node_type = type(node)
 		
-		if node_type == mwparserfromhell.nodes.Wikilink:
+		if isinstance(node, mwparserfromhell.nodes.Wikilink):
 			title = node.title.strip()
 			display = node.text
 			replacements.append((node, url_format % (display or title, api_to_page_url(host["api_url"], title))))
 		
-		elif node_type == mwparserfromhell.nodes.ExternalLink:
+		elif isinstance(node, mwparserfromhell.nodes.ExternalLink):
 			url = node.url.strip()
 			title = node.title
 			replacement = url_format % (title.strip(), url) if title else url
 			replacements.append((node, replacement))
 		
-		elif node_type == mwparserfromhell.nodes.Tag:
+		elif isinstance(node, mwparserfromhell.nodes.Tag):
 			if node.tag == "dd":
 				replacements.append((node, TAB_SUBST))
 			elif node.tag == "i":
@@ -136,7 +136,7 @@ def format_wikitext(text: str, host: customs.Host, url_format: str = "[%s](%s)")
 			elif node.tag == "span":
 				replacements.append((node, node.contents.strip_code()))
 		
-		elif node_type == mwparserfromhell.nodes.Heading:
+		elif isinstance(node, mwparserfromhell.nodes.Heading):
 			if node.level <= 3:
 				replacements.append((node, f"{'#' * node.level} {node.title.strip()}"))
 			else:
@@ -156,3 +156,41 @@ def format_wikitext(text: str, host: customs.Host, url_format: str = "[%s](%s)")
 def get_title_tags(text: str):
 	parts = REF_RE.split(text)
 	return parts[0].strip(), [p.strip() for p in parts[1:]]
+
+if __name__ == "__main__":
+	import orjson
+	import asyncio, aiohttp
+
+	async def main():
+		async with aiohttp.ClientSession() as session:
+			params = {
+				"action": "query",
+				"format": "json",
+				"generator": "search",
+				"gsrwhat": "title",
+				"gsrlimit": 25,
+				"gsrsearch": "File:JudiciarySeal.webp",
+				"prop": "info|revisions|imageinfo",
+				"inprop": "url",
+				"iiprop": "url",
+				"iilimit": 1,
+				"rvprop": "content",
+				"rvslots": "main",
+				"formatversion": 2
+			}
+
+			response = await session.get("https://qwrky.dev/mediawiki/api.php", params=params)
+			if response.status != 200:
+				print(f"Status code {response.status} for request File:JudiciarySeal.webp: {await response.text()}")
+				return None
+
+			data = orjson.loads(await response.text())
+			if not data.get("query", {}).get("pages"):
+				return None
+
+			print(data)
+			items = data["query"]["pages"][:7]
+			if len(items) > 0:
+				print(items)
+
+	asyncio.run(main())
