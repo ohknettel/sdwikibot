@@ -17,9 +17,8 @@ import sentence_splitter
 import traceback
 
 BRACKETS_PATTERN = re.compile(r"\[\[(.+?)\]\]")
-HEADERS = {
-	"User-Agent": f"sdwikibot/2.0 (@knettel; knettel.miraheze.org) discord.py/{discord.__version__}"
-}
+
+SAFE = lambda s: quote(s, ":/")
 
 def prefix_sort(text, query):
 	if len(query) < 3:
@@ -45,16 +44,8 @@ class EventsCog(Cog):
 
 	async def cog_load(self):
 		self.cache = cachetools.TTLCache(maxsize=64, ttl=86400)
-		self.search_cache = cachetools.TTLCache(maxsize=256, ttl=1800)
-	   	
-		connector = aiohttp.TCPConnector(limit=100, limit_per_host=10)
-		self.session = aiohttp.ClientSession(connector=connector, headers=HEADERS)
-		
+		self.search_cache = cachetools.TTLCache(maxsize=256, ttl=1800)		
 		self.semaphore = asyncio.Semaphore(10)
-
-	async def cog_unload(self):
-		if hasattr(self, "session"):
-			await self.session.close()
 
 	async def get_guild_preferences(self, guild: discord.Guild) -> tinydb.TinyDB:
 		if f"pref:{guild.id}" not in self.cache:
