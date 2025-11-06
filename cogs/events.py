@@ -2,11 +2,11 @@ from bot import SDWB2
 from discord.ext.commands import Cog
 from collections import defaultdict
 from rapidfuzz import process, fuzz
+from urllib.parse import quote
 
 import re 
 import customs
 import parser
-import aiohttp
 import asyncio
 
 import discord
@@ -87,7 +87,6 @@ class EventsCog(Cog):
 		for chunk in chunks:
 			if not chunk:
 				continue
-
 			messages.append(await message.reply(chunk.strip()[:2000]))
 
 		self.cache[f"results:{message.id}"] = messages
@@ -192,10 +191,8 @@ class EventsCog(Cog):
 					page["host"] = host
 
 					finds[title].add(host["name"])
-
 					pages[title].append(page)
 					cgroups[content].append(page)
-
 					refs[title] = sorted(tags)
 
 		chunks = [""]
@@ -236,7 +233,7 @@ class EventsCog(Cog):
 					"formatversion": 2
 				}
 
-				response = await self.session.get(host["api_url"], params=params)
+				response = await self.bot.session.get(host["api_url"], params=params)
 				if response.status != 200:
 					print(f"Status code {response.status} for request {content}: {await response.text()}")
 					return None
@@ -268,7 +265,9 @@ class EventsCog(Cog):
 							continue
 
 						page_content = page["revisions"][0]["slots"]["main"]["content"]
-						contents = parser.get_reference(ref,  page_content)
+						page_title = page["title"].replace("*", r"\*")
+
+						contents = parser.get_reference(ref, page_content)
 						if not contents:
 							continue
 
@@ -288,7 +287,7 @@ class EventsCog(Cog):
 												else:
 													current[-1] = f"{current[-1].rstrip()} {sentence}" 
 											else:
-												current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+												current.append(f"- *{url_format % (page_title, SAFE(page["fullurl"]))}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
 												chunks.append("\n".join(current))
 												current.clear()
 												current.append("> " + sentence)
@@ -296,7 +295,7 @@ class EventsCog(Cog):
 									idx += 1
 
 								if len(current) > 0:
-									current.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+									current.append(f"- *{url_format % (page_title, SAFE(page["fullurl"]))}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
 									chunks.append("\n".join(current))
 									current.clear()
 							else:
@@ -313,10 +312,10 @@ class EventsCog(Cog):
 
 										builder.append("> " + line)
 
-									builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+									builder.append(f"- *{url_format % (page_title, SAFE(page["fullurl"]))}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
 								else:
 									builder.append(f"> {string.strip()}")
-									builder.append(f"- *{url_format % (page["title"], page["fullurl"])}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
+									builder.append(f"- *{url_format % (page_title, SAFE(page["fullurl"]))}* ({rcp}){f" [{page["host"]["name"]}]" if include_hosts else ""}\n\n")
 								
 								if len(chunks[-1] + "\n".join(builder)) < chunk_limit:
 									chunks[-1] += "\n".join(builder)
@@ -352,9 +351,15 @@ class EventsCog(Cog):
 					continue
 
 				best_match = max(matches, key=lambda p: prefix_sort(p["title"], search))
-				other_matches = [match for match in matches if match["title"] != best_match["title"]]
+				other_matches = []
+
+				for match in matches:
+					if match["title"] == best_match["title"]:
+						continue
+					elif not any(m["title"] == match["title"] for m in other_matches):
+						other_matches.append(match)
 			
-				self._categorize_link(best_match, duplicates, m_hyperlinks, url_format, matches)
+				self._categorize_link(best_match, duplicates, m_hyperlinks, url_format, matches, True)
 
 				for page in other_matches:
 					self._categorize_link(page, duplicates, r_hyperlinks, url_format, matches)
@@ -378,19 +383,23 @@ class EventsCog(Cog):
 		except:
 			traceback.print_exc()
 
-	def _categorize_link(self, page, duplicates, storage, url_format, matches):
-		title = page["title"]
+	def _categorize_link(self, page, duplicates, storage, url_format, matches, allow_file_embedding: bool = False):
+		title = page["title"].replace("*", r"\*")
+		italicize = "*%s*"
 		
+		if title.lower().startswith("file:") and allow_file_embedding:
+			url_format = italicize = "%s"
+
 		if title in duplicates:
 			links = [
-				f"[{match['host']['name']}]({url_format % match['fullurl']})"
+				f"[{match["host"]["name"]}]({url_format % SAFE(match["fullurl"])})"
 				for match in matches 
-				if match["host"]["name"] != page["host"]["name"] and match["title"] == title
+				if match["title"] == title
 			]
 			if links:
-				storage.append(f"*{title}* ({', '.join(links)})")
+				storage.append(f"{italicize % title} ({', '.join(links)})")
 		else:
-			storage.append(f"*[{title}]({url_format % page['fullurl']})*")
+			storage.append(italicize % f"[{title}]({url_format % SAFE(page["fullurl"])})")
 
 async def setup(bot: SDWB2):
 	await bot.add_cog(EventsCog(bot))
