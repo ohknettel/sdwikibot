@@ -1,1 +1,22 @@
-{"_default": {"1": {"name": "wiki", "api_url": "https://simdemocracy.miraheze.org/w/api.php", "main_url": "https://simdemocracy.miraheze.org/wiki/Main_Page", "enabled": true}, "2": {"name": "archives", "api_url": "https://qwrky.dev/mediawiki/api.php", "main_url": "https://qwrky.dev/mediawiki/index.php/Main_Page", "enabled": true}, "3": {"name": "knettel", "main_url": "https://knettel.miraheze.org/wiki/Main_Page", "api_url": "https://knettel.miraheze.org/w/api.php", "enabled": true}}}
+{
+   "_default":{
+      "1":{
+         "name":"wiki",
+         "api_url":"https://simdemocracy.miraheze.org/w/api.php",
+         "main_url":"https://simdemocracy.miraheze.org/wiki/Main_Page",
+         "enabled":true
+      },
+      "2":{
+         "name":"neoarchives",
+         "api_url":"https://archive.simdemocracy.org/api.php",
+         "main_url":"https://archive.simdemocracy.org/index.php/Main_Page",
+         "enabled":true
+      },
+      "3":{
+         "name":"electowiki",
+         "main_url":"https://electowiki.org/wiki/Main_Page",
+         "api_url":"https://electowiki.org/w/api.php",
+         "enabled":true
+      }
+   }
+}
